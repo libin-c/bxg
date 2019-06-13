@@ -13,7 +13,7 @@ urlpatterns = [
     url(r'^logout/$', views.LogoutView.as_view(), name='logout'),
     url(r'^image/upload/$', views.UploadImageView.as_view(), name='image_upload'),
     # users/info/
-    url(r'^user_info/$', views.InfoView.as_view(), name='user_info'),
+    # url(r'^user_info/$', views.InfoView.as_view(), name='user_info'),
     url(r'^users/info/$', views.InfoView.as_view(), name='user_info'),
     # mymessage
     url(r'^mymessage/$', views.MyMessageView.as_view(), name='mymessage'),

@@ -166,6 +166,37 @@ class ResetView(View):
         # 调用模版渲染生成表单
         return render(request, 'password_reset.html', {'email': email})
 
+    def post(self, request, active_code):
+        email = SecretOauth().loads(active_code)
+        data = request.POST
+
+        # 2、验证表单数据
+        modify_form = ModifyPwdForm(data)
+        res = modify_form.is_valid()  # 验证成功返回True，验证失败返回False
+        if res:
+            password1 = modify_form.cleaned_data['password1']
+            password2 = modify_form.cleaned_data['password2']
+
+            if password1 == password2:
+                try:
+                    user = UserProfile.objects.get(username=email)
+                except Exception as e:
+                    return render(request, 'password_reset.html', {'modify_errors': {'error': '用户不存在'}, 'email': email})
+                if user.check_password(password1) == True:
+                    return render(request, 'password_reset.html',
+                                  {'modify_errors': {'error': '新密码和旧密码重复'}, 'email': email})
+                else:
+                    user.set_password(password1)
+                    user.save()
+                    login(request, user)
+                    response = redirect(reverse('index'))
+                    response.set_cookie('username', email, constants.USERNAME_EXPIRE_TIME)
+                    return response
+            else:
+                return render(request, 'password_reset.html', {'modify_errors': {'error': '修改密码失败'}})
+
+        return render(request, 'password_reset.html', {'modify_form': modify_form})
+
 
 class ModifyPwdView(View):
     def post(self, request):
@@ -209,6 +240,7 @@ class LogoutView(View):
         response.delete_cookie('username')
         return response
 
+
 class UploadImageView(LoginRequiredMixin, View):
     def post(self, request):
         data = request.POST
@@ -224,37 +256,67 @@ class UploadImageView(LoginRequiredMixin, View):
         })
 
 
-class InfoView(LoginRequiredMixin,View):
+class InfoView(LoginRequiredMixin, View):
     def get(self, request):
-        return render(request, 'usercenter-info.html', {'MEDIA_URL': settings.MEDIA_URL})
+        username = request.COOKIES['username']
+        return render(request, 'usercenter-info.html', {'MEDIA_URL': settings.MEDIA_URL, 'email': SecretOauth().dumps(username)})
+
+    # def post(self, request):
+    #
+    #     username = request.COOKIES['username']
+    #     user = UserProfile.objects.get(username=username)
+    #     data =request.POST
+    #     user_info_form=UserInfoForm(data)
+    #
+    #
+    #     if user_info_form.is_valid():
+    #     # 2、验证表单数据
+    #         if user_info_form.errors['birthday']:
+    #             nick_name = user_info_form.cleaned_data['nick_name']
+    #             gender = user_info_form.cleaned_data['gender']
+    #             address = user_info_form.cleaned_data['address']
+    #             mobile = user_info_form.cleaned_data['mobile']
+    #             birthday = data.get('birthday')
+    #             today_date = datetime.strptime(birthday, '%Y年%m月%d日')
+    #             user.nick_name = nick_name
+    #             user.gender = gender
+    #             user.address = address
+    #             user.birthday = today_date
+    #             user.mobile = mobile
+    #             user.save()
+    #             context = {
+    #                 "status": "success"
+    #             }
+    #             return JsonResponse(context)
+    #         else:
+    #             nick_name = user_info_form.cleaned_data['nick_name']
+    #             gender = user_info_form.cleaned_data['gender']
+    #             address = user_info_form.cleaned_data['address']
+    #             mobile = user_info_form.cleaned_data['mobile']
+    #             birthday =user_info_form.cleaned_data['birthday']
+    #             user.nick_name = nick_name
+    #             user.gender = gender
+    #             user.address = address
+    #             user.birthday = birthday
+    #             user.mobile = mobile
+    #             user.save()
+    #             context = {
+    #                 "status": "success"
+    #             }
+    #             return JsonResponse(context)
+    #     return  JsonResponse({
+    #     "status": "error"
+    #     })
 
     def post(self, request):
         data = request.POST
-
-        # 2、验证表单数据
-        user_info_form = UserInfoForm(data)
-        res = user_info_form.is_valid()  # 验证成功返回True，验证失败返回False
+        user_form = UserInfoForm(data, instance=request.user)
+        res = user_form.is_valid()
         if res:
-            username = request.COOKIES['username']
-            nick_name = user_info_form.cleaned_data['nick_name']
-            gender = user_info_form.cleaned_data['gender']
-            birthday = user_info_form.cleaned_data['birthday']
-            address = user_info_form.cleaned_data['address']
-            mobile = user_info_form.cleaned_data['mobile']
-            user = UserProfile.objects.get(username=username)
-            user.nick_name = nick_name
-            user.gender = gender
-            user.birthday = birthday
-            user.address = address
-            user.mobile = mobile
-            user.save()
-            context = {
-                "status": "success"
-            }
-            return JsonResponse(context)
-        return JsonResponse({
-            "status": "error"
-        })
+            request.user.save()
+            return redirect('users/info/')
+        return render(request, 'usercenter-info.html', {'MEDIA_URL': settings.MEDIA_URL,
+                                                        'status': '修改失败'})
 
 
 class MyCourseView(LoginRequiredMixin, View):
@@ -311,5 +373,3 @@ class MyMessageView(LoginRequiredMixin, View):
         })
 
 
-class Gut(View):
-    pass
